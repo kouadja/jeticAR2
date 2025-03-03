@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR avec Three.js</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            z-index: 100;
+        }
+        #debug {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            z-index: 100;
+            font-family: monospace;
+            font-size: 14px;
+            max-width: 80%;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Chargement de l'AR...</div>
+    <div id="debug"></div>
+    
+    <!-- Important: Forcer le chargement synchrone des scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r123/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ar.js@3.3.2/three.js/build/ar.js"></script>
+    <!-- Ajouter le chargeur GLTF pour les fichiers GLB -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.123.0/examples/js/loaders/GLTFLoader.js"></script>
+
+    <script>
+        // Variables globales
+        let scene, camera, renderer;
+        let arToolkitSource, arToolkitContext, markerRoot;
+        let model; // Variable pour stocker notre modèle 3D
+        let isModelDragging = false;
+        let lastMousePosition = { x: 0, y: 0 };
+        let modelScale = 1;
+        let lastTouchDistance = 0;
+        
+        // Fonction de journalisation pour afficher les informations de débogage
+        function log(message) {
+            console.log(message);
+            const debugElement = document.getElementById('debug');
+            if (debugElement) {
+                debugElement.innerHTML += message + '<br>';
+                // Limiter le nombre de lignes affichées
+                if (debugElement.innerHTML.split('<br>').length > 10) {
+                    const lines = debugElement.innerHTML.split('<br>');
+                    debugElement.innerHTML = lines.slice(lines.length - 10).join('<br>');
+                }
+            }
+        }
+        
+        // Vérifier si THREEx est défini
+        function checkTHREEx() {
+            if (typeof THREEx === 'undefined') {
+                log("❌ THREEx n'est pas défini! L'AR.js n'est pas correctement chargé.");
+                document.getElementById('info').textContent = "Erreur: Bibliothèque AR.js non chargée.";
+                return false;
+            }
+            log("✅ THREEx est défini et prêt à l'emploi");
+            return true;
+        }
+        
+        // Configuration des interactions
+        function setupInteractions() {
+            // Événements pour l'interaction avec le modèle
+            renderer.domElement.addEventListener('mousedown', onMouseDown);
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            renderer.domElement.addEventListener('mouseup', onMouseUp);
+            renderer.domElement.addEventListener('wheel', onMouseWheel);
+            
+            // Événements tactiles pour mobiles
+            renderer.domElement.addEventListener('touchstart', onTouchStart);
+            renderer.domElement.addEventListener('touchmove', onTouchMove);
+            renderer.domElement.addEventListener('touchend', onTouchEnd);
+            
+            log("✅ Interactions configurées - essayez de cliquer/toucher le modèle quand il apparaît");
+        }
+        
+        // Gestion de souris
+        function onMouseDown(event) {
+            if (markerRoot.visible && model) {
+                isModelDragging = true;
+                lastMousePosition = {
+                    x: event.clientX,
+                    y: event.clientY
+                };
+                document.getElementById('info').textContent = "Rotation en cours...";
+            }
+        }
+
+        function onMouseMove(event) {
+            if (isModelDragging && markerRoot.visible && model) {
+                const deltaX = event.clientX - lastMousePosition.x;
+                const deltaY = event.clientY - lastMousePosition.y;
+                
+                model.rotation.y += deltaX * 0.01;
+                model.rotation.x += deltaY * 0.01;
+                
+                lastMousePosition = {
+                    x: event.clientX,
+                    y: event.clientY
+                };
+            }
+        }
+
+        function onMouseUp() {
+            isModelDragging = false;
+            document.getElementById('info').textContent = "Modèle interactif - cliquez et faites glisser pour tourner";
+        }
+
+        function onMouseWheel(event) {
+            if (markerRoot.visible && model) {
+                // Zoom avec la molette de la souris
+                event.preventDefault();
+                
+                const zoomSpeed = 0.1;
+                modelScale += event.deltaY > 0 ? -zoomSpeed : zoomSpeed;
+                // Limites d'échelle
+                modelScale = Math.max(0.5, Math.min(modelScale, 3));
+                
+                model.scale.set(modelScale, modelScale, modelScale);
+                document.getElementById('info').textContent = `Échelle: ${modelScale.toFixed(1)}`;
+            }
+        }
+
+        // Gestion tactile pour mobiles
+        function onTouchStart(event) {
+            if (markerRoot.visible && model) {
+                if (event.touches.length === 1) {
+                    // Rotation avec un doigt
+                    isModelDragging = true;
+                    lastMousePosition = {
+                        x: event.touches[0].clientX,
+                        y: event.touches[0].clientY
+                    };
+                } else if (event.touches.length === 2) {
+                    // Zoom avec deux doigts (pincement)
+                    const touch1 = event.touches[0];
+                    const touch2 = event.touches[1];
+                    lastTouchDistance = Math.hypot(
+                        touch2.clientX - touch1.clientX,
+                        touch2.clientY - touch1.clientY
+                    );
+                }
+            }
+        }
+
+        function onTouchMove(event) {
+            if (markerRoot.visible && model) {
+                if (event.touches.length === 1 && isModelDragging) {
+                    // Rotation avec un doigt
+                    const touch = event.touches[0];
+                    const deltaX = touch.clientX - lastMousePosition.x;
+                    const deltaY = touch.clientY - lastMousePosition.y;
+                    
+                    model.rotation.y += deltaX * 0.01;
+                    model.rotation.x += deltaY * 0.01;
+                    
+                    lastMousePosition = {
+                        x: touch.clientX,
+                        y: touch.clientY
+                    };
+                    
+                    document.getElementById('info').textContent = "Rotation en cours...";
+                } else if (event.touches.length === 2) {
+                    // Zoom avec deux doigts (pincement)
+                    const touch1 = event.touches[0];
+                    const touch2 = event.touches[1];
+                    const currentDistance = Math.hypot(
+                        touch2.clientX - touch1.clientX,
+                        touch2.clientY - touch1.clientY
+                    );
+                    
+                    if (lastTouchDistance > 0) {
+                        const zoomSpeed = 0.01;
+                        const zoomDelta = currentDistance - lastTouchDistance;
+                        modelScale += zoomDelta * zoomSpeed;
+                        // Limites d'échelle
+                        modelScale = Math.max(0.5, Math.min(modelScale, 3));
+                        model.scale.set(modelScale, modelScale, modelScale);
+                    }
+                    
+                    lastTouchDistance = currentDistance;
+                    document.getElementById('info').textContent = `Échelle: ${modelScale.toFixed(1)}`;
+                }
+            }
+        }
+
+        function onTouchEnd() {
+            isModelDragging = false;
+            lastTouchDistance = 0;
+            document.getElementById('info').textContent = "Modèle interactif - touchez pour interagir";
+        }
+        
+        // Charger le modèle GLB
+        function loadGLBModel() {
+            // Vérifier si le chargeur GLTF est disponible
+            if (typeof THREE.GLTFLoader === 'undefined') {
+                log("❌ GLTFLoader n'est pas défini! Le chargeur n'est pas correctement chargé.");
+                return;
+            }
+
+            const loader = new THREE.GLTFLoader();
+            log("🔄 Chargement du modèle blizniak.glb...");
+            
+            // Charger le fichier GLB depuis le même répertoire que la page HTML
+            loader.load(
+                './maltose.glb',
+                function(gltf) {
+                    model = gltf.scene;
+                    // Ajuster l'échelle et la position du modèle si nécessaire
+                    model.scale.set(1, 1, 1); // Ajustez l'échelle selon la taille de votre modèle
+                    model.position.y = 0; // Ajustez la position selon votre modèle
+                    
+                    // Ajouter le modèle au markerRoot
+                    markerRoot.add(model);
+                    log("✅ Modèle 3D chargé avec succès!");
+                    document.getElementById('info').textContent = "Modèle interactif - cliquez/touchez pour interagir";
+                    
+                    // Configurer les interactions
+                    setupInteractions();
+                },
+                function(xhr) {
+                    log("📊 Chargement: " + Math.floor(xhr.loaded / xhr.total * 100) + "%");
+                },
+                function(error) {
+                    log("❌ Erreur lors du chargement du modèle: " + error.message);
+                    document.getElementById('info').textContent = "Erreur de chargement du modèle 3D.";
+                    
+                    // Créer un cube comme modèle de secours en cas d'erreur
+                    let geometry = new THREE.BoxGeometry(1, 1, 1);
+                    let material = new THREE.MeshNormalMaterial();
+                    let cube = new THREE.Mesh(geometry, material);
+                    cube.position.y = 0.5;
+                    markerRoot.add(cube);
+                    log("⚠️ Utilisation d'un cube de secours");
+                    
+                    // Configurer quand même les interactions
+                    setupInteractions();
+                }
+            );
+        }
+        
+        // Initialisation
+        function initialize() {
+            log("🔄 Initialisation...");
+            
+            // Vérifier si THREEx est défini avant de continuer
+            if (!checkTHREEx()) {
+                return;
+            }
+            
+            scene = new THREE.Scene();
+            camera = new THREE.Camera();
+            scene.add(camera);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            
+            try {
+                arToolkitSource = new THREEx.ArToolkitSource({
+                    sourceType: 'webcam',
+                });
+                log("📷 Demande d'accès à la caméra...");
+                
+                arToolkitSource.init(() => {
+                    log("✅ Caméra détectée !");
+                    setTimeout(onResize, 500);
+                }, (err) => {
+                    log("❌ Échec d'accès à la caméra: " + err);
+                    document.getElementById('info').textContent = "Erreur : Impossible d'accéder à la caméra.";
+                });
+                
+                window.addEventListener('resize', onResize);
+                
+                arToolkitContext = new THREEx.ArToolkitContext({
+                    cameraParametersUrl: 'https://raw.githack.com/AR-js-org/AR.js/master/data/data/camera_para.dat',
+                    detectionMode: 'mono',
+                });
+                
+                arToolkitContext.init(() => {
+                    log("✅ Contexte AR initialisé !");
+                    camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
+                });
+                
+                // Ajout du marqueur
+                markerRoot = new THREE.Group();
+                scene.add(markerRoot);
+                
+                new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
+                    type: 'pattern',
+                    patternUrl: 'https://raw.githack.com/AR-js-org/AR.js/master/three.js/examples/marker-training/examples/pattern-files/pattern-hiro.patt',
+                });
+                log("🎯 Marqueur AR prêt !");
+                
+                // Charger le modèle GLB 
+                loadGLBModel();
+                
+                // Ajout d'éclairage
+                let ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+                scene.add(ambientLight);
+                let directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                directionalLight.position.set(1, 1, 1);
+                scene.add(directionalLight);
+                
+                setTimeout(() => {
+                    if (!arToolkitSource.domElement || arToolkitSource.domElement.videoWidth === 0) {
+                        log("⚠️ La webcam ne s'affiche pas !");
+                        document.getElementById('info').textContent = "Erreur : la caméra ne fonctionne pas.";
+                    } else {
+                        log("📹 Flux vidéo actif : " + arToolkitSource.domElement.videoWidth + "x" + arToolkitSource.domElement.videoHeight);
+                        document.getElementById('info').textContent = "Pointez vers le marqueur Hiro.";
+                    }
+                }, 3000);
+                
+                animate();
+            } catch (e) {
+                console.error("Erreur critique pendant l'initialisation:", e);
+                log("💥 Erreur: " + e.message);
+                document.getElementById('info').textContent = "Erreur critique: " + e.message;
+            }
+        }
+        
+        // Fonction de redimensionnement
+        function onResize() {
+            arToolkitSource.onResizeElement();
+            arToolkitSource.copyElementSizeTo(renderer.domElement);
+            if (arToolkitContext.arController !== null) {
+                arToolkitSource.copyElementSizeTo(arToolkitContext.arController.canvas);
+                log("📐 Redimensionnement effectué");
+            }
+        }
+        
+        // Boucle d'animation
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (arToolkitSource.ready !== false) {
+                arToolkitContext.update(arToolkitSource.domElement);
+                
+                // Ne plus animer automatiquement le modèle
+                // La rotation se fait maintenant par interaction
+                
+                // Vérification périodique de la détection du marqueur
+                if (markerRoot.visible && !markerRoot._lastVisible) {
+                    log("✨ Marqueur détecté !");
+                    document.getElementById('info').textContent = "Modèle interactif - cliquez/touchez pour interagir";
+                    markerRoot._lastVisible = true;
+                } else if (!markerRoot.visible && markerRoot._lastVisible) {
+                    log("❓ Marqueur perdu");
+                    document.getElementById('info').textContent = "Pointez vers le marqueur Hiro.";
+                    markerRoot._lastVisible = false;
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Solution alternative : chargement séquentiel des scripts
+        function loadScripts() {
+            log("🚀 Chargement des scripts...");
+            
+            // Fonction pour charger un script et attendre qu'il soit chargé
+            function loadScript(url) {
+                return new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.onload = resolve;
+                    script.onerror = () => reject(new Error(`Échec du chargement de ${url}`));
+                    script.src = url;
+                    document.head.appendChild(script);
+                });
+            }
+            
+            // Charger Three.js, AR.js et GLTFLoader de manière séquentielle
+            loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r123/three.min.js')
+                .then(() => {
+                    log("✅ Three.js chargé");
+                    return loadScript('https://raw.githack.com/AR-js-org/AR.js/3.3.3/three.js/build/ar.js');
+                })
+                .then(() => {
+          
+                    return loadScript('https://cdn.jsdelivr.net/npm/three@0.123.0/examples/js/loaders/GLTFLoader.js');
+                })
+                .then(() => {
+                    log("✅ GLTFLoader chargé");
+                    
+                    // Vérifier si THREEx est défini après le chargement
+                    if (typeof THREEx !== 'undefined') {
+                        log("✅ THREEx est défini");
+                        initialize();
+                    } else {
+                        log("❌ THREEx n'est toujours pas défini après le chargement d'AR.js");
+                        document.getElementById('info').textContent = "Erreur: THREEx non disponible après chargement.";
+                    }
+                })
+                .catch(error => {
+                    log(`❌ Erreur de chargement: ${error.message}`);
+                    document.getElementById('info').textContent = "Erreur de chargement des bibliothèques.";
+                });
+        }
+        
+        // Démarrage de l'application avec chargement séquentiel des scripts
+        window.onload = function() {
+            log("🚀 Démarrage de l'application AR");
+            
+            // Vérifier si le navigateur supporte WebRTC (nécessaire pour la webcam)
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                log("✅ WebRTC supporté");
+                
+                // Utiliser la méthode de chargement séquentiel au lieu d'initialiser directement
+                loadScripts();
+            } else {
+                log("❌ WebRTC non supporté");
+                document.getElementById('info').textContent = "Erreur : Votre navigateur ne supporte pas WebRTC (nécessaire pour la caméra).";
+            }
+        };
+    </script>
+</body>
+</html>
