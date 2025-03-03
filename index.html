@@ -56,6 +56,8 @@
         let lastMousePosition = { x: 0, y: 0 };
         let modelScale = 1;
         let lastTouchDistance = 0;
+
+        
         
         // Fonction de journalisation pour afficher les informations de débogage
         function log(message) {
@@ -78,7 +80,7 @@
                 document.getElementById('info').textContent = "Erreur: Bibliothèque AR.js non chargée.";
                 return false;
             }
-            log("✅ THREEx est défini et prêt à l'emploi");
+           
             return true;
         }
         
@@ -94,9 +96,7 @@
             renderer.domElement.addEventListener('touchstart', onTouchStart);
             renderer.domElement.addEventListener('touchmove', onTouchMove);
             renderer.domElement.addEventListener('touchend', onTouchEnd);
-            
-            log("✅ Interactions configurées - essayez de cliquer/toucher le modèle quand il apparaît");
-        }
+                    }
         
         // Gestion de souris
         function onMouseDown(event) {
@@ -221,13 +221,12 @@
                 log("❌ GLTFLoader n'est pas défini! Le chargeur n'est pas correctement chargé.");
                 return;
             }
-
+            const marker = './heart_3d_-_organ.glb'
             const loader = new THREE.GLTFLoader();
-            log("🔄 Chargement du modèle blizniak.glb...");
             
             // Charger le fichier GLB depuis le même répertoire que la page HTML
             loader.load(
-                './maltose.glb',
+                    marker,
                 function(gltf) {
                     model = gltf.scene;
                     // Ajuster l'échelle et la position du modèle si nécessaire
@@ -236,7 +235,6 @@
                     
                     // Ajouter le modèle au markerRoot
                     markerRoot.add(model);
-                    log("✅ Modèle 3D chargé avec succès!");
                     document.getElementById('info').textContent = "Modèle interactif - cliquez/touchez pour interagir";
                     
                     // Configurer les interactions
@@ -275,6 +273,8 @@
             scene = new THREE.Scene();
             camera = new THREE.Camera();
             scene.add(camera);
+            const ambientLight = new THREE.AmbientLight(0x404040, 1); // Lumière ambiante avec une couleur gris clair
+            scene.add(ambientLight);
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
@@ -286,7 +286,6 @@
                 log("📷 Demande d'accès à la caméra...");
                 
                 arToolkitSource.init(() => {
-                    log("✅ Caméra détectée !");
                     setTimeout(onResize, 500);
                 }, (err) => {
                     log("❌ Échec d'accès à la caméra: " + err);
@@ -301,7 +300,6 @@
                 });
                 
                 arToolkitContext.init(() => {
-                    log("✅ Contexte AR initialisé !");
                     camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
                 });
                 
@@ -378,6 +376,7 @@
             renderer.render(scene, camera);
         }
         
+        
         // Solution alternative : chargement séquentiel des scripts
         function loadScripts() {
             log("🚀 Chargement des scripts...");
@@ -435,7 +434,9 @@
                 log("❌ WebRTC non supporté");
                 document.getElementById('info').textContent = "Erreur : Votre navigateur ne supporte pas WebRTC (nécessaire pour la caméra).";
             }
+
         };
+
     </script>
 </body>
 </html>
