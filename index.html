@@ -221,7 +221,7 @@
                 log("❌ GLTFLoader n'est pas défini! Le chargeur n'est pas correctement chargé.");
                 return;
             }
-            const marker = './heart_3d_-_organ.glb'
+            const marker = './beating-heart.glb'
             const loader = new THREE.GLTFLoader();
             
             // Charger le fichier GLB depuis le même répertoire que la page HTML
@@ -230,7 +230,7 @@
                 function(gltf) {
                     model = gltf.scene;
                     // Ajuster l'échelle et la position du modèle si nécessaire
-                    model.scale.set(5, 5, 5); // Ajustez l'échelle selon la taille de votre modèle
+                    model.scale.set(20, 20, 20); // Ajustez l'échelle selon la taille de votre modèle
                     model.position.y = 0; // Ajustez la position selon votre modèle
                     
                     // Ajouter le modèle au markerRoot
@@ -241,6 +241,7 @@
                     setupInteractions();
                 },
                 function(xhr) {
+                    log("📊 Chargement: " + Math.floor(xhr.loaded / xhr.total * 100) + "%");
                 },
                 function(error) {
                     log("❌ Erreur lors du chargement du modèle: " + error.message);
@@ -252,6 +253,7 @@
                     let cube = new THREE.Mesh(geometry, material);
                     cube.position.y = 0.5;
                     markerRoot.add(cube);
+                    log("⚠️ Utilisation d'un cube de secours");
                     
                     // Configurer quand même les interactions
                     setupInteractions();
@@ -261,6 +263,7 @@
         
         // Initialisation
         function initialize() {
+            log("🔄 Initialisation...");
             
             // Vérifier si THREEx est défini avant de continuer
             if (!checkTHREEx()) {
@@ -270,8 +273,8 @@
             scene = new THREE.Scene();
             camera = new THREE.Camera();
             scene.add(camera);
-            const ambientLight = new THREE.AmbientLight(0x404040, 1); // Lumière ambiante avec une couleur gris clair
-            scene.add(ambientLight);
+            const ambientLight = new THREE.AmbientLight(0xFFFFFF, 1);           
+             scene.add(ambientLight);
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
@@ -308,6 +311,7 @@
                     type: 'pattern',
                     patternUrl: 'https://raw.githack.com/AR-js-org/AR.js/master/three.js/examples/marker-training/examples/pattern-files/pattern-hiro.patt',
                 });
+                log("🎯 Marqueur AR prêt !");
                 
                 // Charger le modèle GLB 
                 loadGLBModel();
@@ -343,6 +347,7 @@
             arToolkitSource.copyElementSizeTo(renderer.domElement);
             if (arToolkitContext.arController !== null) {
                 arToolkitSource.copyElementSizeTo(arToolkitContext.arController.canvas);
+                log("📐 Redimensionnement effectué");
             }
         }
         
@@ -358,6 +363,7 @@
                 
                 // Vérification périodique de la détection du marqueur
                 if (markerRoot.visible && !markerRoot._lastVisible) {
+                    log("✨ Marqueur détecté !");
                     document.getElementById('info').textContent = "Modèle interactif - cliquez/touchez pour interagir";
                     markerRoot._lastVisible = true;
                 } else if (!markerRoot.visible && markerRoot._lastVisible) {
@@ -373,6 +379,7 @@
         
         // Solution alternative : chargement séquentiel des scripts
         function loadScripts() {
+            log("🚀 Chargement des scripts...");
             
             // Fonction pour charger un script et attendre qu'il soit chargé
             function loadScript(url) {
@@ -388,6 +395,7 @@
             // Charger Three.js, AR.js et GLTFLoader de manière séquentielle
             loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r123/three.min.js')
                 .then(() => {
+                    log("✅ Three.js chargé");
                     return loadScript('https://raw.githack.com/AR-js-org/AR.js/3.3.3/three.js/build/ar.js');
                 })
                 .then(() => {
@@ -395,9 +403,11 @@
                     return loadScript('https://cdn.jsdelivr.net/npm/three@0.123.0/examples/js/loaders/GLTFLoader.js');
                 })
                 .then(() => {
+                    log("✅ GLTFLoader chargé");
                     
                     // Vérifier si THREEx est défini après le chargement
                     if (typeof THREEx !== 'undefined') {
+                        log("✅ THREEx est défini");
                         initialize();
                     } else {
                         log("❌ THREEx n'est toujours pas défini après le chargement d'AR.js");
@@ -412,9 +422,11 @@
         
         // Démarrage de l'application avec chargement séquentiel des scripts
         window.onload = function() {
+            log("🚀 Démarrage de l'application AR");
             
             // Vérifier si le navigateur supporte WebRTC (nécessaire pour la webcam)
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                log("✅ WebRTC supporté");
                 
                 // Utiliser la méthode de chargement séquentiel au lieu d'initialiser directement
                 loadScripts();
