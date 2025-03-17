@@ -132,7 +132,7 @@
 
         function onMouseWheel(event) {
             if (markerRoot.visible && model) {
-                // Zoom avec la molette de la souris
+                
                 event.preventDefault();
                 
                 const zoomSpeed = 0.1;
@@ -185,7 +185,7 @@
                     
                     document.getElementById('info').textContent = "Rotation en cours...";
                 } else if (event.touches.length === 2) {
-                    // Zoom avec deux doigts (pincement)
+                    
                     const touch1 = event.touches[0];
                     const touch2 = event.touches[1];
                     const currentDistance = Math.hypot(
@@ -197,7 +197,7 @@
                         const zoomSpeed = 0.01;
                         const zoomDelta = currentDistance - lastTouchDistance;
                         modelScale += zoomDelta * zoomSpeed;
-                        // Limites d'échelle
+                       
                         modelScale = Math.max(0.5, Math.min(modelScale, 3));
                         model.scale.set(modelScale, modelScale, modelScale);
                     }
@@ -229,9 +229,9 @@
                     marker,
                 function(gltf) {
                     model = gltf.scene;
-                    // Ajuster l'échelle et la position du modèle si nécessaire
-                    model.scale.set(20, 20, 20); // Ajustez l'échelle selon la taille de votre modèle
-                    model.position.y = 0; // Ajustez la position selon votre modèle
+                   
+                    model.scale.set(20, 20, 20); 
+                    model.position.y = 0; 
                     
                     // Ajouter le modèle au markerRoot
                     markerRoot.add(model);
@@ -261,7 +261,7 @@
             );
         }
         
-        // Initialisation
+        
         function initialize() {
             log("🔄 Initialisation...");
             
@@ -341,7 +341,7 @@
             }
         }
         
-        // Fonction de redimensionnement
+      
         function onResize() {
             arToolkitSource.onResizeElement();
             arToolkitSource.copyElementSizeTo(renderer.domElement);
@@ -351,17 +351,13 @@
             }
         }
         
-        // Boucle d'animation
+        // ici l'animation
         function animate() {
             requestAnimationFrame(animate);
             
             if (arToolkitSource.ready !== false) {
                 arToolkitContext.update(arToolkitSource.domElement);
-                
-                // Ne plus animer automatiquement le modèle
-                // La rotation se fait maintenant par interaction
-                
-                // Vérification périodique de la détection du marqueur
+  
                 if (markerRoot.visible && !markerRoot._lastVisible) {
                     log("✨ Marqueur détecté !");
                     document.getElementById('info').textContent = "Modèle interactif - cliquez/touchez pour interagir";
@@ -376,8 +372,7 @@
             renderer.render(scene, camera);
         }
         
-        
-        // Solution alternative : chargement séquentiel des scripts
+
         function loadScripts() {
             log("🚀 Chargement des scripts...");
             
@@ -424,11 +419,11 @@
         window.onload = function() {
             log("🚀 Démarrage de l'application AR");
             
-            // Vérifier si le navigateur supporte WebRTC (nécessaire pour la webcam)
+ 
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 log("✅ WebRTC supporté");
                 
-                // Utiliser la méthode de chargement séquentiel au lieu d'initialiser directement
+     
                 loadScripts();
             } else {
                 log("❌ WebRTC non supporté");
